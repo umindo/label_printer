@@ -1,0 +1,3 @@
+include label_printer/templates/*
+include label_printer/public/*
+recursive-include label_printer *.html *.js *.css *.json *.txt *.py *.md

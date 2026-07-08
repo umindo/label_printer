@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual Environment on Pi
+print_agent/env/
+
+# OS / Editor
+.DS_Store
+.vscode/
+.idea/

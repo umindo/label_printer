@@ -1,0 +1,19 @@
+[project]
+name = "label_printer"
+authors = [{ name = "Your Company" }]
+description = "Print TSPL item labels from Delivery Note via TSC TDP-225"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = [
+    "requests>=2.28",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["label_printer*"]
+
+[tool.flit.module]
+name = "label_printer"
+
+[tool.bench.dev-dependencies]

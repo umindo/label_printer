@@ -1,0 +1,134 @@
+{
+ "actions": [],
+ "creation": "2024-01-01 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "printer_connection_section",
+  "agent_ip",
+  "agent_port",
+  "api_key",
+  "test_connection_btn",
+  "label_config_section",
+  "label_width",
+  "label_height",
+  "col_break_1",
+  "gap_mm",
+  "barcode_type",
+  "print_options_section",
+  "show_dialog"
+ ],
+ "fields": [
+  {
+   "fieldname": "printer_connection_section",
+   "fieldtype": "Section Break",
+   "label": "Printer Connection"
+  },
+  {
+   "default": "192.168.1.100",
+   "description": "IP address of the Raspberry Pi running the print agent",
+   "fieldname": "agent_ip",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Print Agent IP",
+   "reqd": 1
+  },
+  {
+   "default": "5000",
+   "description": "Port the Flask print agent is listening on (default: 5000)",
+   "fieldname": "agent_port",
+   "fieldtype": "Int",
+   "label": "Port",
+   "reqd": 1
+  },
+  {
+   "description": "Shared secret key — must match PRINT_AGENT_KEY on the Raspberry Pi",
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "API Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "test_connection_btn",
+   "fieldtype": "Button",
+   "label": "Test Connection"
+  },
+  {
+   "fieldname": "label_config_section",
+   "fieldtype": "Section Break",
+   "label": "Label Configuration (60 \u00d7 40 mm default)"
+  },
+  {
+   "default": "60",
+   "description": "Label width in mm",
+   "fieldname": "label_width",
+   "fieldtype": "Float",
+   "label": "Label Width (mm)",
+   "reqd": 1
+  },
+  {
+   "default": "40",
+   "description": "Label height in mm",
+   "fieldname": "label_height",
+   "fieldtype": "Float",
+   "label": "Label Height (mm)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "3",
+   "description": "Gap between labels in mm",
+   "fieldname": "gap_mm",
+   "fieldtype": "Float",
+   "label": "Gap (mm)",
+   "reqd": 1
+  },
+  {
+   "default": "QR Code",
+   "fieldname": "barcode_type",
+   "fieldtype": "Select",
+   "label": "Barcode Type",
+   "options": "QR Code\nCode 128",
+   "reqd": 1
+  },
+  {
+   "fieldname": "print_options_section",
+   "fieldtype": "Section Break",
+   "label": "Print Options"
+  },
+  {
+   "default": "1",
+   "description": "When checked, a dialog appears so you can select items and adjust quantities before printing",
+   "fieldname": "show_dialog",
+   "fieldtype": "Check",
+   "label": "Show Print Dialog Before Printing"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_single": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2024-01-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Label Printer",
+ "name": "Label Printer Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 0
+}
