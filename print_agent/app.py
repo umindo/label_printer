@@ -147,7 +147,7 @@ def render_label_image(data: dict):
     # Load fonts (adjusted sizes for margin safety)
     f_hdr  = _load_font(FONT_BOLD,    20)   # Header company name
     f_logo = _load_font(FONT_BOLD,    20)   # Logo "U"
-    f_lbl  = _load_font(FONT_BOLD,    14)   # "ITEM DESC:" label (changed to BOLD)
+    f_lbl  = _load_font(FONT_BOLD,    22)   # "ITEM DESC:" label (size 22 bold, matching item name)
     f_name = _load_font(FONT_BOLD,    22)   # Item name
     f_qty  = _load_font(FONT_BOLD,    18)   # QTY: 10  UNIT: PCS
     f_foot = _load_font(FONT_REGULAR, 12)   # Footer contact text
@@ -175,10 +175,11 @@ def render_label_image(data: dict):
     draw.text((text_pad, M_TB + 48), "ITEM DESC:", font=f_lbl, fill="black")
     
     # ── Wrap and Render Item Name ────────────────────────────
-    # Limit item_name to fit inside printable width (384 dots)
+    # Limit item_name to fit inside printable width (380 dots)
     name_lines = _wrap_text(item_name, f_name, 380)
     
-    curr_y = M_TB + 66
+    # Position item name to start below the "ITEM DESC:" header (which takes ~24 dots of height)
+    curr_y = M_TB + 76
     for line in name_lines[:2]:  # Draw up to 2 lines of item name
         draw.text((text_pad, curr_y), line, font=f_name, fill="black")
         curr_y += 24
@@ -214,7 +215,8 @@ def render_label_image(data: dict):
         box_size=3,
         border=1,
     )
-    qr.add_data(item_code)
+    # Encodes description (which is the actual full-text product information) or item name
+    qr.add_data(description if description else item_name)
     qr.make(fit=True)
     qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
     qr_w, qr_h = qr_img.size
