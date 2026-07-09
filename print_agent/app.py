@@ -71,6 +71,41 @@ def _load_font(path, size):
 # Bitmap label renderer
 # ─────────────────────────────────────────────────────────────
 
+def _wrap_text(text, font, max_width):
+    """Split text into lines that fit within max_width pixels."""
+    words = text.split(" ")
+    lines = []
+    current_line = []
+    
+    for word in words:
+        if not word:
+            continue
+        test_line = " ".join(current_line + [word])
+        try:
+            # Pillow 10+
+            w = font.getbbox(test_line)[2]
+        except Exception:
+            try:
+                w = font.getsize(test_line)[0]
+            except Exception:
+                w = len(test_line) * 11  # Fallback approximation
+                
+        if w <= max_width:
+            current_line.append(word)
+        else:
+            if current_line:
+                lines.append(" ".join(current_line))
+                current_line = [word]
+            else:
+                lines.append(word)
+                current_line = []
+                
+    if current_line:
+        lines.append(" ".join(current_line))
+        
+    return lines
+
+
 def render_label_image(data: dict):
     """
     Render a label as a PIL RGB Image using DejaVu Sans font.
@@ -81,11 +116,11 @@ def render_label_image(data: dict):
     │ [U]  PT. UNITEK MAS INDONESIA                  │ ← Header
     ├────────────────────────────────────────────────┤
     │ ITEM DESC:                                     │ ← Body
-    │ Double Splice Tape 8mm Yello                   │
-    │ QTY: 1    UNIT: pcs                            │
+    │ DOUBLE SPLICE TAPE 8MM YELLO                   │
+    │ QTY: 1    UNIT: PCS                            │
     ├────────────────────────────────────────────────┤
-    │ www.unitekmasindonesia.com       ┌──────────┐  │ ← Footer
-    │ info@unitekmasindonesia.com      │ QR CODE  │  │
+    │ WWW.UNITEKMASINDONESIA.COM       ┌──────────┐  │ ← Footer
+    │ INFO@UNITEKMASINDONESIA.COM      │ QR CODE  │  │
     │                                  └──────────┘  │
     └────────────────────────────────────────────────┘
     """
@@ -101,20 +136,20 @@ def render_label_image(data: dict):
     M_LR  = 8
     M_TB  = 16
 
-    # Truncate text to fit the 54mm printhead width (416 dots available inside margins)
-    company     = str(data.get("company",     ""))[:25]
-    item_name   = str(data.get("item_name",   ""))[:24]
+    # Convert all inputs to UPPERCASE to match mockup styling
+    company     = str(data.get("company",     "")).upper()[:25]
+    item_name   = str(data.get("item_name",   "")).upper()
     item_code   = str(data.get("item_code",   ""))
-    description = str(data.get("description", ""))
+    description = str(data.get("description", "")).upper()
     qty         = int(data.get("qty",  1))
-    uom         = str(data.get("uom",  ""))[:10]
+    uom         = str(data.get("uom",  "")).upper()[:10]
 
     # Load fonts (adjusted sizes for margin safety)
     f_hdr  = _load_font(FONT_BOLD,    20)   # Header company name
     f_logo = _load_font(FONT_BOLD,    20)   # Logo "U"
     f_lbl  = _load_font(FONT_REGULAR, 14)   # "ITEM DESC:" label
     f_name = _load_font(FONT_BOLD,    22)   # Item name
-    f_qty  = _load_font(FONT_BOLD,    18)   # QTY: 10  UNIT: pcs
+    f_qty  = _load_font(FONT_BOLD,    18)   # QTY: 10  UNIT: PCS
     f_foot = _load_font(FONT_REGULAR, 12)   # Footer contact text
 
     # Canvas — white background
@@ -136,18 +171,31 @@ def render_label_image(data: dict):
     draw.line([(M_LR, M_TB + 40), (W - M_LR, M_TB + 40)], fill="black", width=2)
 
     # ── Body ─────────────────────────────────────────────────
-    # Keep text padded 16 dots from left border for neatness
     text_pad = M_LR + 16
-    draw.text((text_pad, M_TB + 50), "ITEM DESC:", font=f_lbl, fill="black")
-    draw.text((text_pad, M_TB + 70), item_name,    font=f_name, fill="black")
+    draw.text((text_pad, M_TB + 48), "ITEM DESC:", font=f_lbl, fill="black")
     
-    # Description (if different from name)
+    # ── Wrap and Render Item Name ────────────────────────────
+    # Limit item_name to fit inside printable width (384 dots)
+    name_lines = _wrap_text(item_name, f_name, 380)
+    
+    curr_y = M_TB + 66
+    for line in name_lines[:2]:  # Draw up to 2 lines of item name
+        draw.text((text_pad, curr_y), line, font=f_name, fill="black")
+        curr_y += 24
+
+    # ── Wrap and Render Description (if distinct) ────────────
     if description and description != item_name:
         f_desc = _load_font(FONT_REGULAR, 16)
-        draw.text((text_pad, M_TB + 100), description[:38], font=f_desc, fill="black")
-        draw.text((text_pad, M_TB + 134), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
+        desc_lines = _wrap_text(description, f_desc, 380)
+        curr_y += 2
+        for line in desc_lines[:1]:  # Draw 1 line of description
+            draw.text((text_pad, curr_y), line, font=f_desc, fill="black")
+            curr_y += 18
     else:
-        draw.text((text_pad, M_TB + 115), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
+        curr_y += 6
+
+    # ── Draw QTY and UNIT ────────────────────────────────────
+    draw.text((text_pad, curr_y), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
 
     # Divider 2 (extends from left border to right border)
     div_y = 205
@@ -155,8 +203,8 @@ def render_label_image(data: dict):
 
     # ── Footer Left: Contact Info ─────────────────────────────
     fy = div_y + 12
-    draw.text((text_pad, fy),      LABEL_WEB,   font=f_foot, fill="black")
-    draw.text((text_pad, fy + 20), LABEL_EMAIL, font=f_foot, fill="black")
+    draw.text((text_pad, fy),      LABEL_WEB.upper(),   font=f_foot, fill="black")
+    draw.text((text_pad, fy + 20), LABEL_EMAIL.upper(), font=f_foot, fill="black")
 
     # ── Footer Right: QR Code ─────────────────────────────────
     qr = _qr.QRCode(
