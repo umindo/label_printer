@@ -182,14 +182,20 @@ def image_to_tspl_bytes(img, w_mm: int, h_mm: int, gap_mm: int, copies: int) -> 
     # Convert to grayscale then threshold
     img_bw = img.convert("L")
 
-    # Pack pixels into bits: 1 = black (dark pixel < 128)
+    # Pack pixels into bits:
+    # TSPL uses 0 for black (print dot) and 1 for white (no print dot) for this firmware.
     raw = bytearray()
     for y in range(H):
         for xb in range(width_bytes):
             byte_val = 0
             for bit in range(8):
                 x = xb * 8 + bit
+                is_black = False
                 if x < W and img_bw.getpixel((x, y)) < 128:
+                    is_black = True
+                
+                if not is_black:
+                    # Set bit to 1 for white (no print)
                     byte_val |= (1 << (7 - bit))
             raw.append(byte_val)
 
