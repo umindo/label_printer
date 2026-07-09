@@ -27,9 +27,9 @@ API_KEY        = os.environ.get("PRINT_AGENT_KEY", "change-this-to-a-strong-secr
 PRINTER_DEVICE = os.environ.get("PRINTER_DEVICE", "/dev/usb/lp0")
 PORT           = int(os.environ.get("PORT", "5000"))
 
-# Font paths (DejaVu Sans — free, Arial-like, pre-installed on Raspberry Pi OS)
-FONT_BOLD    = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-FONT_REGULAR = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+# Font paths (using bundled fonts in print_agent/fonts/ for absolute reliability)
+FONT_BOLD    = os.path.join(os.path.dirname(__file__), "fonts", "DejaVuSans-Bold.ttf")
+FONT_REGULAR = os.path.join(os.path.dirname(__file__), "fonts", "DejaVuSans.ttf")
 
 # Fixed footer contact info
 LABEL_WEB   = "www.unitekmasindonesia.com"
