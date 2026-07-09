@@ -96,23 +96,23 @@ def render_label_image(data: dict):
     h_mm  = int(data.get("label_height_mm", 40))
     W     = round(w_mm  / 25.4 * DPI)   # 480 dots
     H     = round(h_mm  / 25.4 * DPI)   # 320 dots
-    M     = 20                            # left/right margin in dots
+    M     = 35                            # Increased left/right margin in dots to prevent edge cutoffs
 
-    # Truncate text to safe widths
-    company     = str(data.get("company",     ""))[:28]
-    item_name   = str(data.get("item_name",   ""))[:27]
+    # Truncate text to safe widths for the new margins
+    company     = str(data.get("company",     ""))[:26]
+    item_name   = str(data.get("item_name",   ""))[:24]
     item_code   = str(data.get("item_code",   ""))
     description = str(data.get("description", ""))
     qty         = int(data.get("qty",  1))
-    uom         = str(data.get("uom",  ""))[:12]
+    uom         = str(data.get("uom",  ""))[:10]
 
-    # Load fonts (increasing sizes for clear readability)
-    f_hdr  = _load_font(FONT_BOLD,    24)   # Header company name (larger)
-    f_logo = _load_font(FONT_BOLD,    24)   # Logo "U"
-    f_lbl  = _load_font(FONT_REGULAR, 15)   # "ITEM DESC:" label (smaller helper text)
-    f_name = _load_font(FONT_BOLD,    26)   # Item name (big and bold!)
-    f_qty  = _load_font(FONT_BOLD,    20)   # QTY: 10  UNIT: pcs (medium bold)
-    f_foot = _load_font(FONT_REGULAR, 13)   # Footer contact text (larger, clearer)
+    # Load fonts (adjusted sizes for margin safety)
+    f_hdr  = _load_font(FONT_BOLD,    22)   # Header company name
+    f_logo = _load_font(FONT_BOLD,    22)   # Logo "U"
+    f_lbl  = _load_font(FONT_REGULAR, 14)   # "ITEM DESC:" label
+    f_name = _load_font(FONT_BOLD,    24)   # Item name
+    f_qty  = _load_font(FONT_BOLD,    19)   # QTY: 10  UNIT: pcs
+    f_foot = _load_font(FONT_REGULAR, 13)   # Footer contact text
 
     # Canvas — white background
     img  = Image.new("RGB", (W, H), "white")
