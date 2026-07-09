@@ -105,12 +105,13 @@ def render_label_image(data: dict):
     qty       = int(data.get("qty",  1))
     uom       = str(data.get("uom",  ""))[:12]
 
-    # Load fonts
-    f_hdr  = _load_font(FONT_BOLD,    22)   # Header company name
-    f_logo = _load_font(FONT_BOLD,    22)   # Logo "U"
-    f_lbl  = _load_font(FONT_REGULAR, 16)   # "ITEM DESC:" + QTY/UNIT labels
-    f_name = _load_font(FONT_BOLD,    22)   # Item name (large, bold)
-    f_foot = _load_font(FONT_REGULAR, 11)   # Footer contact text (small)
+    # Load fonts (increasing sizes for clear readability)
+    f_hdr  = _load_font(FONT_BOLD,    24)   # Header company name (larger)
+    f_logo = _load_font(FONT_BOLD,    24)   # Logo "U"
+    f_lbl  = _load_font(FONT_REGULAR, 15)   # "ITEM DESC:" label (smaller helper text)
+    f_name = _load_font(FONT_BOLD,    26)   # Item name (big and bold!)
+    f_qty  = _load_font(FONT_BOLD,    20)   # QTY: 10  UNIT: pcs (medium bold)
+    f_foot = _load_font(FONT_REGULAR, 13)   # Footer contact text (larger, clearer)
 
     # Canvas — white background
     img  = Image.new("RGB", (W, H), "white")
@@ -118,26 +119,33 @@ def render_label_image(data: dict):
 
     # ── Header ───────────────────────────────────────────────
     # Logo box
-    draw.rectangle([M, 5, M + 34, 37], outline="black", width=2)
-    draw.text((M + 8, 6), "U", font=f_logo, fill="black")
+    draw.rectangle([M, 8, M + 34, 42], outline="black", width=2)
+    draw.text((M + 8, 9), "U", font=f_logo, fill="black")
     # Company name
-    draw.text((M + 44, 7), company, font=f_hdr, fill="black")
+    draw.text((M + 44, 10), company, font=f_hdr, fill="black")
     # Divider 1
-    draw.line([(M, 43), (W - M, 43)], fill="black", width=2)
+    draw.line([(M, 48), (W - M, 48)], fill="black", width=2)
 
     # ── Body ─────────────────────────────────────────────────
-    draw.text((M, 50),  "ITEM DESC:", font=f_lbl, fill="black")
-    draw.text((M, 70),  item_name,    font=f_name, fill="black")
-    draw.text((M, 100), f"QTY: {qty}    UNIT: {uom}", font=f_lbl, fill="black")
+    draw.text((M, 58),  "ITEM DESC:", font=f_lbl, fill="black")
+    draw.text((M, 80),  item_name,    font=f_name, fill="black")
+    
+    # Description (if different from name)
+    if description and description != item_name:
+        f_desc = _load_font(FONT_REGULAR, 18)
+        draw.text((M, 115), description[:35], font=f_desc, fill="black")
+        draw.text((M, 155), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
+    else:
+        draw.text((M, 135), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
 
-    # Divider 2
-    div_y = 124
+    # Divider 2 (placed much lower at Y=200 to give body section proper vertical space)
+    div_y = 200
     draw.line([(M, div_y), (W - M, div_y)], fill="black", width=2)
 
     # ── Footer Left: Contact Info ─────────────────────────────
-    fy = div_y + 10
+    fy = div_y + 14
     draw.text((M, fy),      LABEL_WEB,   font=f_foot, fill="black")
-    draw.text((M, fy + 18), LABEL_EMAIL, font=f_foot, fill="black")
+    draw.text((M, fy + 22), LABEL_EMAIL, font=f_foot, fill="black")
 
     # ── Footer Right: QR Code ─────────────────────────────────
     qr = _qr.QRCode(
@@ -151,15 +159,15 @@ def render_label_image(data: dict):
     qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
     qr_w, qr_h = qr_img.size
 
-    # Fit QR into footer area
-    footer_h = H - div_y - 4
+    # Fit QR into footer area (Y=200 to Y=320 is 120px tall)
+    footer_h = H - div_y - 12
     if qr_h > footer_h:
         scale  = footer_h / qr_h
         qr_img = qr_img.resize((int(qr_w * scale), footer_h))
         qr_w, qr_h = qr_img.size
 
     qr_x = W - qr_w - M
-    qr_y = div_y + max(4, (H - div_y - qr_h) // 2)
+    qr_y = div_y + (H - div_y - qr_h) // 2
     img.paste(qr_img, (qr_x, qr_y))
 
     return img
