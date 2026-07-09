@@ -127,16 +127,17 @@ def print_item_labels(docname, items_json, printer_device=None):
 
     # ── Send each item to the Pi render endpoint ─────────────
     for item in items:
-        qty = max(1, int(float(item.get("qty", 1))))
+        dn_qty = max(1, int(float(item.get("dn_qty", 1))))
+        print_qty = max(1, int(float(item.get("print_qty", 1))))
 
         payload = {
             "company":          company,
             "item_code":        item.get("item_code",   ""),
             "item_name":        item.get("item_name",   ""),
             "description":      _strip_html(item.get("description", "")),
-            "qty":              qty,
+            "qty":              dn_qty,
             "uom":              item.get("uom",         ""),
-            "copies":           qty,
+            "copies":           print_qty,
             "label_width_mm":   int(settings.label_width),
             "label_height_mm":  int(settings.label_height),
             "gap_mm":           int(settings.gap_mm),
@@ -145,7 +146,7 @@ def print_item_labels(docname, items_json, printer_device=None):
             payload["device"] = printer_device
 
         send_render_request(payload, settings)
-        total_labels += qty
+        total_labels += print_qty
 
     if not total_labels:
         frappe.throw(_("No valid items to print."))

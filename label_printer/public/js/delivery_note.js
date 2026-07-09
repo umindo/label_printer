@@ -99,14 +99,7 @@ function open_print_dialog(frm, items, printers) {
     setTimeout(() => init_interactions(dialog, items), 150);
 }
 
-// ─────────────────────────────────────────────────────────────
-// HTML builder — items table with checkboxes + qty inputs
-// ─────────────────────────────────────────────────────────────
-
-function build_items_html(items) {
-    const rows = items
-        .map((item, idx) => {
-            const qty = Math.max(1, Math.round(item.qty || 1));
+// ──────�            const dn_qty = Math.max(1, Math.round(item.qty || 1));
             return `
             <tr>
                 <td style="text-align:center;vertical-align:middle;width:40px">
@@ -119,13 +112,13 @@ function build_items_html(items) {
                     ${frappe.utils.escape_html(item.item_name || "")}
                 </td>
                 <td style="text-align:center;vertical-align:middle">
-                    ${qty} ${frappe.utils.escape_html(item.uom || "")}
+                    ${dn_qty} ${frappe.utils.escape_html(item.uom || "")}
                 </td>
                 <td style="text-align:center;width:90px">
                     <input type="number"
                            class="lp-qty-input form-control form-control-sm"
                            data-idx="${idx}"
-                           value="${qty}"
+                           value="1"
                            min="1"
                            style="width:75px;display:inline-block">
                 </td>
@@ -207,6 +200,31 @@ function update_total($w) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Collect selected items from dialog
+// ─────────────────────────────────────────────────────────────
+
+function get_selected_items(dialog, items) {
+    const $w = dialog.$wrapper;
+    const selected = [];
+
+    $w.find(".lp-item-check:checked").each(function () {
+        const idx = $(this).data("idx");
+        const item = items[idx];
+        const print_qty =
+            parseInt($w.find(`.lp-qty-input[data-idx="${idx}"]`).val()) || 1;
+
+        selected.push({
+            item_code: item.item_code || "",
+            item_name: item.item_name || "",
+            description: item.description || "",
+            dn_qty: Math.max(1, Math.round(item.qty || 1)),
+            print_qty: print_qty,
+            uom: item.uom || "",
+        });
+    });
+
+    return selected;
+}───────────────────────────────────────────────────────────
 // Collect selected items from dialog
 // ─────────────────────────────────────────────────────────────
 
