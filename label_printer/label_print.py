@@ -207,16 +207,14 @@ def build_tspl(
     desc_text = _trunc(_strip_html(description), 28)  # Fits nicely left of QR code
     qty_line = f"QTY  : {qty}"
     unit_line = f"UNIT : {_trunc(uom, 10)}"
-    code_text = f"*{_trunc(item_code, 25)}*"
 
-    # Calculate centering for barcode text
-    # Character width for Font 2 is 8 dots.
-    text_width = len(code_text) * 8
-    text_x = max(10, (480 - text_width) // 2)
+    # Footer contact info details
+    web_text = "www.unitekmasindonesia.com"
+    email_text = "info@unitekmasindonesia.com"
 
-    # Estimate barcode width to center it (roughly 11 dots per char in narrow=2)
-    barcode_width = (len(item_code) + 4) * 11
-    barcode_x = max(10, (480 - barcode_width) // 2)
+    # Calculate centering for footer text (Font 2 character width is 8 dots)
+    web_x = max(10, (480 - len(web_text) * 8) // 2)
+    email_x = max(10, (480 - len(email_text) * 8) // 2)
 
     lines = [
         f"SIZE {w} mm, {h} mm",
@@ -224,33 +222,33 @@ def build_tspl(
         "DIRECTION 0",
         "CLS",
         # ── Header: Logo Box + Text ────────────────────────
-        "BOX 10,8,45,38,2",
-        'TEXT 19,13,"3",0,1,1,"U"',
-        f'TEXT 55,13,"3",0,1,1,"{company_text}"',
+        "BOX 20,8,55,38,2",
+        'TEXT 29,13,"3",0,1,1,"U"',
+        f'TEXT 65,13,"3",0,1,1,"{company_text}"',
         # ── Horizontal Divider 1 ───────────────────────────
-        "BAR 0,40,480,2",
+        "BAR 20,40,440,2",
         # ── Body Left: Item Name and Description ───────────
-        'TEXT 5,48,"2",0,1,1,"ITEM DESC:"',
-        f'TEXT 5,72,"3",0,1,1,"{item_name_text}"',
+        'TEXT 20,48,"2",0,1,1,"ITEM DESC:"',
+        f'TEXT 20,72,"2",0,1,1,"{item_name_text}"',
     ]
 
     if desc_text:
-        lines.append(f'TEXT 5,102,"2",0,1,1,"{desc_text}"')
+        lines.append(f'TEXT 20,98,"2",0,1,1,"{desc_text}"')
 
     # ── Body Left: Qty and Unit ───────────────────────────
-    lines.append(f'TEXT 5,132,"2",0,1,1,"{qty_line}"')
-    lines.append(f'TEXT 150,132,"2",0,1,1,"{unit_line}"')
+    lines.append(f'TEXT 20,128,"2",0,1,1,"{qty_line}"')
+    lines.append(f'TEXT 150,128,"2",0,1,1,"{unit_line}"')
 
     # ── Body Right: QR Code ───────────────────────────────
     # Keeps QR Code on the right (X=340)
     lines.append(f'QRCODE 340,48,M,5,A,0,"{item_code}"')
 
     # ── Horizontal Divider 2 ───────────────────────────
-    lines.append("BAR 0,195,480,2")
+    lines.append("BAR 20,195,440,2")
 
-    # ── Footer: Barcode and centered text ──────────────────
-    lines.append(f'BARCODE {barcode_x},205,"128",45,0,0,2,2,"{item_code}"')
-    lines.append(f'TEXT {text_x},258,"2",0,1,1,"{code_text}"')
+    # ── Footer: Website and Email contact info ─────────────
+    lines.append(f'TEXT {web_x},205,"2",0,1,1,"{web_text}"')
+    lines.append(f'TEXT {email_x},235,"2",0,1,1,"{email_text}"')
 
     # ── Print command ─────────────────────────────────────
     lines.append(f"PRINT {qty},1")
