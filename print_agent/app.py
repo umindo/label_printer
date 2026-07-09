@@ -99,11 +99,12 @@ def render_label_image(data: dict):
     M     = 20                            # left/right margin in dots
 
     # Truncate text to safe widths
-    company   = str(data.get("company",   ""))[:28]
-    item_name = str(data.get("item_name", ""))[:27]
-    item_code = str(data.get("item_code", ""))
-    qty       = int(data.get("qty",  1))
-    uom       = str(data.get("uom",  ""))[:12]
+    company     = str(data.get("company",     ""))[:28]
+    item_name   = str(data.get("item_name",   ""))[:27]
+    item_code   = str(data.get("item_code",   ""))
+    description = str(data.get("description", ""))
+    qty         = int(data.get("qty",  1))
+    uom         = str(data.get("uom",  ""))[:12]
 
     # Load fonts (increasing sizes for clear readability)
     f_hdr  = _load_font(FONT_BOLD,    24)   # Header company name (larger)
