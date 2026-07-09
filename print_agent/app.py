@@ -147,7 +147,7 @@ def render_label_image(data: dict):
     # Load fonts (adjusted sizes for margin safety)
     f_hdr  = _load_font(FONT_BOLD,    20)   # Header company name
     f_logo = _load_font(FONT_BOLD,    20)   # Logo "U"
-    f_lbl  = _load_font(FONT_REGULAR, 14)   # "ITEM DESC:" label
+    f_lbl  = _load_font(FONT_BOLD,    14)   # "ITEM DESC:" label (changed to BOLD)
     f_name = _load_font(FONT_BOLD,    22)   # Item name
     f_qty  = _load_font(FONT_BOLD,    18)   # QTY: 10  UNIT: PCS
     f_foot = _load_font(FONT_REGULAR, 12)   # Footer contact text
