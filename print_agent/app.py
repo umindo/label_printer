@@ -74,8 +74,9 @@ def _load_font(path, size):
 def render_label_image(data: dict):
     """
     Render a label as a PIL RGB Image using DejaVu Sans font.
+    Capped at 54mm width (432 dots) to strictly match the physical TSC TDP-225 printhead.
 
-    Layout (60 × 40 mm = 480 × 320 dots at 203 DPI):
+    Layout (54 × 40 mm = 432 × 320 dots at 203 DPI):
     ┌────────────────────────────────────────────────┐
     │ [U]  PT. UNITEK MAS INDONESIA                  │ ← Header
     ├────────────────────────────────────────────────┤
@@ -92,30 +93,29 @@ def render_label_image(data: dict):
     import qrcode as _qr
 
     DPI   = 203
-    w_mm  = int(data.get("label_width_mm", 60))
     h_mm  = int(data.get("label_height_mm", 40))
-    W     = round(w_mm  / 25.4 * DPI)   # 480 dots
-    H     = round(h_mm  / 25.4 * DPI)   # 320 dots
+    W     = 432                           # 54 mm max printhead width (strictly enforced)
+    H     = round(h_mm  / 25.4 * DPI)     # 320 dots
     
-    # 0.5mm left/right = 4 dots, 2mm top/bottom = 16 dots at 203 DPI
-    M_LR  = 4
+    # 1mm left/right = 8 dots, 2mm top/bottom = 16 dots
+    M_LR  = 8
     M_TB  = 16
 
-    # Truncate text to fit the new wider printable area (472 dots wide)
-    company     = str(data.get("company",     ""))[:34]
-    item_name   = str(data.get("item_name",   ""))[:30]
+    # Truncate text to fit the 54mm printhead width (416 dots available inside margins)
+    company     = str(data.get("company",     ""))[:25]
+    item_name   = str(data.get("item_name",   ""))[:24]
     item_code   = str(data.get("item_code",   ""))
     description = str(data.get("description", ""))
     qty         = int(data.get("qty",  1))
-    uom         = str(data.get("uom",  ""))[:12]
+    uom         = str(data.get("uom",  ""))[:10]
 
     # Load fonts (adjusted sizes for margin safety)
-    f_hdr  = _load_font(FONT_BOLD,    22)   # Header company name
-    f_logo = _load_font(FONT_BOLD,    22)   # Logo "U"
+    f_hdr  = _load_font(FONT_BOLD,    20)   # Header company name
+    f_logo = _load_font(FONT_BOLD,    20)   # Logo "U"
     f_lbl  = _load_font(FONT_REGULAR, 14)   # "ITEM DESC:" label
-    f_name = _load_font(FONT_BOLD,    24)   # Item name
-    f_qty  = _load_font(FONT_BOLD,    19)   # QTY: 10  UNIT: pcs
-    f_foot = _load_font(FONT_REGULAR, 13)   # Footer contact text
+    f_name = _load_font(FONT_BOLD,    22)   # Item name
+    f_qty  = _load_font(FONT_BOLD,    18)   # QTY: 10  UNIT: pcs
+    f_foot = _load_font(FONT_REGULAR, 12)   # Footer contact text
 
     # Canvas — white background
     img  = Image.new("RGB", (W, H), "white")
@@ -128,35 +128,35 @@ def render_label_image(data: dict):
     # ── Header ───────────────────────────────────────────────
     # Logo box (placed inside the outer border with padding)
     logo_left = M_LR + 8
-    draw.rectangle([logo_left, M_TB + 6, logo_left + 34, M_TB + 38], outline="black", width=2)
-    draw.text((logo_left + 8, M_TB + 10), "U", font=f_logo, fill="black")
+    draw.rectangle([logo_left, M_TB + 6, logo_left + 30, M_TB + 34], outline="black", width=2)
+    draw.text((logo_left + 6, M_TB + 8), "U", font=f_logo, fill="black")
     # Company name
-    draw.text((logo_left + 44, M_TB + 11), company, font=f_hdr, fill="black")
+    draw.text((logo_left + 38, M_TB + 9), company, font=f_hdr, fill="black")
     # Divider 1 (extends from left border to right border)
-    draw.line([(M_LR, M_TB + 44), (W - M_LR, M_TB + 44)], fill="black", width=2)
+    draw.line([(M_LR, M_TB + 40), (W - M_LR, M_TB + 40)], fill="black", width=2)
 
     # ── Body ─────────────────────────────────────────────────
     # Keep text padded 16 dots from left border for neatness
     text_pad = M_LR + 16
-    draw.text((text_pad, M_TB + 54), "ITEM DESC:", font=f_lbl, fill="black")
-    draw.text((text_pad, M_TB + 74), item_name,    font=f_name, fill="black")
+    draw.text((text_pad, M_TB + 50), "ITEM DESC:", font=f_lbl, fill="black")
+    draw.text((text_pad, M_TB + 70), item_name,    font=f_name, fill="black")
     
     # Description (if different from name)
     if description and description != item_name:
-        f_desc = _load_font(FONT_REGULAR, 18)
-        draw.text((text_pad, M_TB + 108), description[:44], font=f_desc, fill="black")
-        draw.text((text_pad, M_TB + 144), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
+        f_desc = _load_font(FONT_REGULAR, 16)
+        draw.text((text_pad, M_TB + 100), description[:38], font=f_desc, fill="black")
+        draw.text((text_pad, M_TB + 134), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
     else:
-        draw.text((text_pad, M_TB + 124), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
+        draw.text((text_pad, M_TB + 115), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
 
     # Divider 2 (extends from left border to right border)
-    div_y = 200
+    div_y = 205
     draw.line([(M_LR, div_y), (W - M_LR, div_y)], fill="black", width=2)
 
     # ── Footer Left: Contact Info ─────────────────────────────
-    fy = div_y + 14
+    fy = div_y + 12
     draw.text((text_pad, fy),      LABEL_WEB,   font=f_foot, fill="black")
-    draw.text((text_pad, fy + 22), LABEL_EMAIL, font=f_foot, fill="black")
+    draw.text((text_pad, fy + 20), LABEL_EMAIL, font=f_foot, fill="black")
 
     # ── Footer Right: QR Code ─────────────────────────────────
     qr = _qr.QRCode(
@@ -170,7 +170,7 @@ def render_label_image(data: dict):
     qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
     qr_w, qr_h = qr_img.size
 
-    # Fit QR into footer area (div_y to H-M_TB is 200 to 304 = 104px tall)
+    # Fit QR into footer area (div_y to H-M_TB is 205 to 304 = 99px tall)
     footer_h = H - M_TB - div_y - 6
     if qr_h > footer_h:
         scale  = footer_h / qr_h
@@ -178,7 +178,7 @@ def render_label_image(data: dict):
         qr_w, qr_h = qr_img.size
 
     # Place QR code inside the right border with padding
-    qr_x = W - qr_w - M_LR - 12
+    qr_x = W - qr_w - M_LR - 8
     qr_y = div_y + (H - M_TB - div_y - qr_h) // 2
     img.paste(qr_img, (qr_x, qr_y))
 
@@ -197,7 +197,7 @@ def image_to_tspl_bytes(img, w_mm: int, h_mm: int, gap_mm: int, copies: int) -> 
     """
     W = img.width
     H = img.height
-    width_bytes = (W + 7) // 8   # 60 for 480-dot width
+    width_bytes = (W + 7) // 8   # 54 for 432-dot width (54mm printhead)
 
     # Convert to grayscale then threshold
     img_bw = img.convert("L")
