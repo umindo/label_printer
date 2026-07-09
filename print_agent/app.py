@@ -202,7 +202,8 @@ def render_label_image(data: dict):
     draw.line([(M_LR, div_y), (W - M_LR, div_y)], fill="black", width=2)
 
     # ── Footer Left: Contact Info ─────────────────────────────
-    fy = div_y + 12
+    # Vertically centered inside the 99-dot height footer (between Y=205 and Y=304)
+    fy = div_y + 26
     draw.text((text_pad, fy),      LABEL_WEB.upper(),   font=f_foot, fill="black")
     draw.text((text_pad, fy + 20), LABEL_EMAIL.upper(), font=f_foot, fill="black")
 
