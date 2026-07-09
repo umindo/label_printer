@@ -97,13 +97,13 @@ def render_label_image(data: dict):
     W     = round(w_mm  / 25.4 * DPI)   # 480 dots
     H     = round(h_mm  / 25.4 * DPI)   # 320 dots
     
-    # 1mm left/right = 8 dots, 2mm top/bottom = 16 dots at 203 DPI
-    M_LR  = 8
+    # 0.5mm left/right = 4 dots, 2mm top/bottom = 16 dots at 203 DPI
+    M_LR  = 4
     M_TB  = 16
 
-    # Truncate text to fit the new wider printable area (464 dots wide)
-    company     = str(data.get("company",     ""))[:32]
-    item_name   = str(data.get("item_name",   ""))[:28]
+    # Truncate text to fit the new wider printable area (472 dots wide)
+    company     = str(data.get("company",     ""))[:34]
+    item_name   = str(data.get("item_name",   ""))[:30]
     item_code   = str(data.get("item_code",   ""))
     description = str(data.get("description", ""))
     qty         = int(data.get("qty",  1))
@@ -131,16 +131,18 @@ def render_label_image(data: dict):
     draw.line([(M_LR, M_TB + 38), (W - M_LR, M_TB + 38)], fill="black", width=2)
 
     # ── Body ─────────────────────────────────────────────────
-    draw.text((M_LR, M_TB + 48), "ITEM DESC:", font=f_lbl, fill="black")
-    draw.text((M_LR, M_TB + 68), item_name,    font=f_name, fill="black")
+    # Keep text padded 16 dots from left for neatness
+    text_pad = M_LR + 12
+    draw.text((text_pad, M_TB + 48), "ITEM DESC:", font=f_lbl, fill="black")
+    draw.text((text_pad, M_TB + 68), item_name,    font=f_name, fill="black")
     
     # Description (if different from name)
     if description and description != item_name:
         f_desc = _load_font(FONT_REGULAR, 18)
-        draw.text((M_LR, M_TB + 102), description[:42], font=f_desc, fill="black")
-        draw.text((M_LR, M_TB + 140), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
+        draw.text((text_pad, M_TB + 102), description[:44], font=f_desc, fill="black")
+        draw.text((text_pad, M_TB + 140), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
     else:
-        draw.text((M_LR, M_TB + 120), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
+        draw.text((text_pad, M_TB + 120), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
 
     # Divider 2 (placed lower to separate footer, fits within H-M_TB = 304 dots)
     div_y = 200
@@ -148,8 +150,8 @@ def render_label_image(data: dict):
 
     # ── Footer Left: Contact Info ─────────────────────────────
     fy = div_y + 14
-    draw.text((M_LR, fy),      LABEL_WEB,   font=f_foot, fill="black")
-    draw.text((M_LR, fy + 22), LABEL_EMAIL, font=f_foot, fill="black")
+    draw.text((text_pad, fy),      LABEL_WEB,   font=f_foot, fill="black")
+    draw.text((text_pad, fy + 22), LABEL_EMAIL, font=f_foot, fill="black")
 
     # ── Footer Right: QR Code ─────────────────────────────────
     qr = _qr.QRCode(
@@ -170,7 +172,8 @@ def render_label_image(data: dict):
         qr_img = qr_img.resize((int(qr_w * scale), footer_h))
         qr_w, qr_h = qr_img.size
 
-    qr_x = W - qr_w - M_LR
+    # Keep QR code 20 dots away from the right edge specifically, so it never gets cut off
+    qr_x = W - qr_w - 20
     qr_y = div_y + (H - M_TB - div_y - qr_h) // 2
     img.paste(qr_img, (qr_x, qr_y))
 
