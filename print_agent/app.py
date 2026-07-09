@@ -75,16 +75,57 @@ def health():
 def list_printers():
     """
     Authenticated endpoint.
-    Returns a list of connected USB printer device paths.
+    Returns a list of connected USB printer devices with names.
     """
     err = _auth_check()
     if err:
         return err
 
     import glob
-    devices = glob.glob("/dev/usb/lp*")
-    log.info("Listed printers: %s", devices)
-    return jsonify({"status": "ok", "printers": devices})
+    devices = sorted(glob.glob("/dev/usb/lp*"))
+    printers = []
+
+    for dev_path in devices:
+        # e.g. /dev/usb/lp0 → lp0
+        lp_name = os.path.basename(dev_path)
+        manufacturer = ""
+        product = ""
+
+        # Read USB device info from sysfs
+        sysfs_base = f"/sys/class/usbmisc/{lp_name}/device/.."
+        try:
+            mfr_path = os.path.join(sysfs_base, "manufacturer")
+            if os.path.exists(mfr_path):
+                with open(mfr_path) as f:
+                    manufacturer = f.read().strip()
+        except Exception:
+            pass
+
+        try:
+            prod_path = os.path.join(sysfs_base, "product")
+            if os.path.exists(prod_path):
+                with open(prod_path) as f:
+                    product = f.read().strip()
+        except Exception:
+            pass
+
+        # Build a friendly label, e.g. "TSC TDP-225 (/dev/usb/lp0)"
+        if manufacturer and product:
+            label = f"{manufacturer} {product} ({dev_path})"
+        elif manufacturer or product:
+            label = f"{manufacturer or product} ({dev_path})"
+        else:
+            label = dev_path
+
+        printers.append({
+            "device": dev_path,
+            "label": label,
+            "manufacturer": manufacturer,
+            "product": product,
+        })
+
+    log.info("Listed printers: %s", [p["label"] for p in printers])
+    return jsonify({"status": "ok", "printers": printers})
 
 
 # ── Print endpoint ────────────────────────────────────────────
@@ -135,6 +176,7 @@ def print_label():
 
     # Write to printer
     try:
+        log.info("Raw TSPL received: %r", tspl)
         raw = tspl.encode("ascii", errors="replace")
         with open(device, "wb") as printer:
             printer.write(raw)

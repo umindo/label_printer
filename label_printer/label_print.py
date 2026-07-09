@@ -145,7 +145,7 @@ def print_item_labels(docname, items_json, printer_device=None):
         frappe.throw(_("No valid items to print."))
 
     # ── Send combined TSPL to Raspberry Pi agent ─────────────
-    combined_tspl = "\r\n".join(tspl_blocks)
+    combined_tspl = "".join(tspl_blocks)
     send_to_print_agent(combined_tspl, settings, device=printer_device)
 
     return _("✅ Sent {0} label(s) to printer successfully.").format(total_labels)
@@ -197,9 +197,9 @@ def build_tspl(
     The PRINT command is appended with the requested qty so the
     printer produces exactly qty copies in one job.
     """
-    w = settings.label_width    # mm, e.g. 60
-    h = settings.label_height   # mm, e.g. 40
-    gap = settings.gap_mm       # mm, e.g. 3
+    w = int(settings.label_width)    # mm, e.g. 60
+    h = int(settings.label_height)   # mm, e.g. 40
+    gap = int(settings.gap_mm)       # mm, e.g. 3
     barcode_type = settings.barcode_type  # "QR Code" or "Code 128"
 
     company_text = _trunc(company, 30)
@@ -246,7 +246,7 @@ def build_tspl(
     # ── Print qty copies ────────────────────────────────────
     lines.append(f"PRINT {qty},1")
 
-    return "\r\n".join(lines)
+    return "\r\n".join(lines) + "\r\n"
 
 
 # ─────────────────────────────────────────────────────────────

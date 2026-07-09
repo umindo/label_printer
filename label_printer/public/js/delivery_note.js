@@ -29,24 +29,43 @@ function show_print_dialog(frm) {
     frappe.call({
         method: "label_printer.label_print.get_printers",
         callback(r) {
-            const printers = r.message || [];
-            const printer_options = printers.length > 0 ? printers : ["/dev/usb/lp0", "/dev/usb/lp1"];
-            open_print_dialog(frm, items, printer_options);
+            let printers = r.message || [];
+
+            // Normalize: API may return objects {device, label} or plain strings
+            if (printers.length > 0 && typeof printers[0] === "object") {
+                // Already objects with label + device
+            } else {
+                // Fallback: convert plain strings to objects
+                printers = printers.map(p => ({ device: p, label: p }));
+            }
+
+            if (!printers.length) {
+                printers = [
+                    { device: "/dev/usb/lp0", label: "/dev/usb/lp0" },
+                    { device: "/dev/usb/lp1", label: "/dev/usb/lp1" },
+                ];
+            }
+
+            open_print_dialog(frm, items, printers);
         }
     });
 }
 
-function open_print_dialog(frm, items, printer_options) {
+function open_print_dialog(frm, items, printers) {
+    // Build "label\ndevice_path" options for Select field
+    // The Select value will be the label, we map it back to device on submit
+    const option_labels = printers.map(p => p.label);
+
     const dialog = new frappe.ui.Dialog({
         title: __("🖨️ Print Item Labels"),
         size: "large",
         fields: [
             {
-                label: __("Select Printer Device"),
-                fieldname: "printer_device",
+                label: __("Select Printer"),
+                fieldname: "printer_label",
                 fieldtype: "Select",
-                options: printer_options,
-                default: printer_options[0],
+                options: option_labels,
+                default: option_labels[0],
             },
             {
                 fieldtype: "Section Break"
@@ -64,7 +83,11 @@ function open_print_dialog(frm, items, printer_options) {
                 frappe.msgprint(__("Please select at least one item."));
                 return;
             }
-            const printer_device = dialog.get_value("printer_device");
+            // Map selected label back to device path
+            const chosen_label = dialog.get_value("printer_label");
+            const printer = printers.find(p => p.label === chosen_label);
+            const printer_device = printer ? printer.device : chosen_label;
+
             dialog.hide();
             send_print_request(frm.doc.name, selected, printer_device);
         },
