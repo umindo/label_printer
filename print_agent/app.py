@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 app.py — TSC TDP-225 Print Agent for Raspberry Pi
-Receives TSPL commands from ERPNext and writes them to the USB printer.
+Receives label data from ERPNext, renders it as a bitmap using
+DejaVu Sans font (Arial-like), and writes raw TSPL BITMAP bytes
+to the USB printer for clean, professional label output.
 
 Usage:
     python3 app.py
@@ -21,9 +23,17 @@ from flask import Flask, jsonify, request
 # Configuration — set via environment variables or edit defaults
 # ─────────────────────────────────────────────────────────────
 
-API_KEY = os.environ.get("PRINT_AGENT_KEY", "change-this-to-a-strong-secret")
+API_KEY        = os.environ.get("PRINT_AGENT_KEY", "change-this-to-a-strong-secret")
 PRINTER_DEVICE = os.environ.get("PRINTER_DEVICE", "/dev/usb/lp0")
-PORT = int(os.environ.get("PORT", "5000"))
+PORT           = int(os.environ.get("PORT", "5000"))
+
+# Font paths (DejaVu Sans — free, Arial-like, pre-installed on Raspberry Pi OS)
+FONT_BOLD    = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+FONT_REGULAR = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+
+# Fixed footer contact info
+LABEL_WEB   = "www.unitekmasindonesia.com"
+LABEL_EMAIL = "info@unitekmasindonesia.com"
 
 # ─────────────────────────────────────────────────────────────
 # Flask app
@@ -47,6 +57,155 @@ def _auth_check():
     return None
 
 
+def _load_font(path, size):
+    """Load a TTF font with graceful fallback to PIL default."""
+    from PIL import ImageFont
+    try:
+        return ImageFont.truetype(path, size)
+    except Exception:
+        log.warning("Font not found: %s. Using default.", path)
+        return ImageFont.load_default()
+
+
+# ─────────────────────────────────────────────────────────────
+# Bitmap label renderer
+# ─────────────────────────────────────────────────────────────
+
+def render_label_image(data: dict):
+    """
+    Render a label as a PIL RGB Image using DejaVu Sans font.
+
+    Layout (60 × 40 mm = 480 × 320 dots at 203 DPI):
+    ┌────────────────────────────────────────────────┐
+    │ [U]  PT. UNITEK MAS INDONESIA                  │ ← Header
+    ├────────────────────────────────────────────────┤
+    │ ITEM DESC:                                     │ ← Body
+    │ Double Splice Tape 8mm Yello                   │
+    │ QTY: 1    UNIT: pcs                            │
+    ├────────────────────────────────────────────────┤
+    │ www.unitekmasindonesia.com       ┌──────────┐  │ ← Footer
+    │ info@unitekmasindonesia.com      │ QR CODE  │  │
+    │                                  └──────────┘  │
+    └────────────────────────────────────────────────┘
+    """
+    from PIL import Image, ImageDraw
+    import qrcode as _qr
+
+    DPI   = 203
+    w_mm  = int(data.get("label_width_mm", 60))
+    h_mm  = int(data.get("label_height_mm", 40))
+    W     = round(w_mm  / 25.4 * DPI)   # 480 dots
+    H     = round(h_mm  / 25.4 * DPI)   # 320 dots
+    M     = 20                            # left/right margin in dots
+
+    # Truncate text to safe widths
+    company   = str(data.get("company",   ""))[:28]
+    item_name = str(data.get("item_name", ""))[:27]
+    item_code = str(data.get("item_code", ""))
+    qty       = int(data.get("qty",  1))
+    uom       = str(data.get("uom",  ""))[:12]
+
+    # Load fonts
+    f_hdr  = _load_font(FONT_BOLD,    22)   # Header company name
+    f_logo = _load_font(FONT_BOLD,    22)   # Logo "U"
+    f_lbl  = _load_font(FONT_REGULAR, 16)   # "ITEM DESC:" + QTY/UNIT labels
+    f_name = _load_font(FONT_BOLD,    22)   # Item name (large, bold)
+    f_foot = _load_font(FONT_REGULAR, 11)   # Footer contact text (small)
+
+    # Canvas — white background
+    img  = Image.new("RGB", (W, H), "white")
+    draw = ImageDraw.Draw(img)
+
+    # ── Header ───────────────────────────────────────────────
+    # Logo box
+    draw.rectangle([M, 5, M + 34, 37], outline="black", width=2)
+    draw.text((M + 8, 6), "U", font=f_logo, fill="black")
+    # Company name
+    draw.text((M + 44, 7), company, font=f_hdr, fill="black")
+    # Divider 1
+    draw.line([(M, 43), (W - M, 43)], fill="black", width=2)
+
+    # ── Body ─────────────────────────────────────────────────
+    draw.text((M, 50),  "ITEM DESC:", font=f_lbl, fill="black")
+    draw.text((M, 70),  item_name,    font=f_name, fill="black")
+    draw.text((M, 100), f"QTY: {qty}    UNIT: {uom}", font=f_lbl, fill="black")
+
+    # Divider 2
+    div_y = 124
+    draw.line([(M, div_y), (W - M, div_y)], fill="black", width=2)
+
+    # ── Footer Left: Contact Info ─────────────────────────────
+    fy = div_y + 10
+    draw.text((M, fy),      LABEL_WEB,   font=f_foot, fill="black")
+    draw.text((M, fy + 18), LABEL_EMAIL, font=f_foot, fill="black")
+
+    # ── Footer Right: QR Code ─────────────────────────────────
+    qr = _qr.QRCode(
+        version=None,
+        error_correction=_qr.constants.ERROR_CORRECT_M,
+        box_size=3,
+        border=1,
+    )
+    qr.add_data(item_code)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+    qr_w, qr_h = qr_img.size
+
+    # Fit QR into footer area
+    footer_h = H - div_y - 4
+    if qr_h > footer_h:
+        scale  = footer_h / qr_h
+        qr_img = qr_img.resize((int(qr_w * scale), footer_h))
+        qr_w, qr_h = qr_img.size
+
+    qr_x = W - qr_w - M
+    qr_y = div_y + max(4, (H - div_y - qr_h) // 2)
+    img.paste(qr_img, (qr_x, qr_y))
+
+    return img
+
+
+def image_to_tspl_bytes(img, w_mm: int, h_mm: int, gap_mm: int, copies: int) -> bytes:
+    """
+    Convert a PIL Image to raw TSPL BITMAP bytes.
+    Returns bytes ready to write to /dev/usb/lp*.
+
+    TSPL BITMAP format: BITMAP x,y,width_bytes,height,mode,<binary data>
+      - width_bytes = ceil(width_dots / 8)
+      - mode 0 = overwrite
+      - binary data: 1 bit per pixel, MSB = leftmost pixel, 1 = black
+    """
+    W = img.width
+    H = img.height
+    width_bytes = (W + 7) // 8   # 60 for 480-dot width
+
+    # Convert to grayscale then threshold
+    img_bw = img.convert("L")
+
+    # Pack pixels into bits: 1 = black (dark pixel < 128)
+    raw = bytearray()
+    for y in range(H):
+        for xb in range(width_bytes):
+            byte_val = 0
+            for bit in range(8):
+                x = xb * 8 + bit
+                if x < W and img_bw.getpixel((x, y)) < 128:
+                    byte_val |= (1 << (7 - bit))
+            raw.append(byte_val)
+
+    header = (
+        f"SIZE {w_mm} mm, {h_mm} mm\r\n"
+        f"GAP {gap_mm} mm, 0\r\n"
+        f"DIRECTION 0\r\n"
+        f"CLS\r\n"
+        f"BITMAP 0,0,{width_bytes},{H},0,"
+    ).encode("ascii")
+
+    footer = f"\r\nPRINT {copies},1\r\n".encode("ascii")
+
+    return bytes(header) + bytes(raw) + bytes(footer)
+
+
 # ── Health endpoint ───────────────────────────────────────────
 
 
@@ -59,13 +218,7 @@ def health():
     online = os.path.exists(PRINTER_DEVICE)
     status = "online" if online else "offline"
     log.info("Health check — printer: %s (%s)", status, PRINTER_DEVICE)
-    return jsonify(
-        {
-            "status": "ok",
-            "printer": status,
-            "device": PRINTER_DEVICE,
-        }
-    )
+    return jsonify({"status": "ok", "printer": status, "device": PRINTER_DEVICE})
 
 
 # ── Get list of connected printers ───────────────────────────
@@ -86,30 +239,25 @@ def list_printers():
     printers = []
 
     for dev_path in devices:
-        # e.g. /dev/usb/lp0 → lp0
-        lp_name = os.path.basename(dev_path)
+        lp_name      = os.path.basename(dev_path)
         manufacturer = ""
-        product = ""
+        product      = ""
+        sysfs_base   = f"/sys/class/usbmisc/{lp_name}/device/.."
 
-        # Read USB device info from sysfs
-        sysfs_base = f"/sys/class/usbmisc/{lp_name}/device/.."
         try:
-            mfr_path = os.path.join(sysfs_base, "manufacturer")
-            if os.path.exists(mfr_path):
-                with open(mfr_path) as f:
-                    manufacturer = f.read().strip()
+            p = os.path.join(sysfs_base, "manufacturer")
+            if os.path.exists(p):
+                manufacturer = open(p).read().strip()
         except Exception:
             pass
 
         try:
-            prod_path = os.path.join(sysfs_base, "product")
-            if os.path.exists(prod_path):
-                with open(prod_path) as f:
-                    product = f.read().strip()
+            p = os.path.join(sysfs_base, "product")
+            if os.path.exists(p):
+                product = open(p).read().strip()
         except Exception:
             pass
 
-        # Build a friendly label, e.g. "TSC TDP-225 (/dev/usb/lp0)"
         if manufacturer and product:
             label = f"{manufacturer} {product} ({dev_path})"
         elif manufacturer or product:
@@ -117,37 +265,26 @@ def list_printers():
         else:
             label = dev_path
 
-        printers.append({
-            "device": dev_path,
-            "label": label,
-            "manufacturer": manufacturer,
-            "product": product,
-        })
+        printers.append({"device": dev_path, "label": label,
+                         "manufacturer": manufacturer, "product": product})
 
     log.info("Listed printers: %s", [p["label"] for p in printers])
     return jsonify({"status": "ok", "printers": printers})
 
 
-# ── Print endpoint ────────────────────────────────────────────
+# ── Raw TSPL print endpoint (legacy fallback) ─────────────────
 
 
 @app.route("/print", methods=["POST"])
 def print_label():
     """
-    Authenticated endpoint.
-    Expects JSON body:
-    {
-        "tspl": "<TSPL command string>",
-        "device": "/dev/usb/lp1"  (optional)
-    }
-    Writes raw TSPL bytes directly to the USB printer device.
+    Authenticated endpoint — legacy raw TSPL mode.
+    Expects JSON: { "tspl": "<TSPL commands>", "device": "/dev/usb/lp1" }
     """
-    # Auth
     err = _auth_check()
     if err:
         return err
 
-    # Parse body
     data = request.get_json(silent=True)
     if not data or "tspl" not in data:
         return jsonify({"error": "Missing 'tspl' field in request body"}), 400
@@ -156,54 +293,90 @@ def print_label():
     if not isinstance(tspl, str) or not tspl.strip():
         return jsonify({"error": "'tspl' must be a non-empty string"}), 400
 
-    # Read and validate custom target device
     device = data.get("device", PRINTER_DEVICE)
-    if not isinstance(device, str) or not (device.startswith("/dev/usb/lp") or device.startswith("/dev/usb/")):
-        return jsonify({"error": "Invalid printer device path. Must be under /dev/usb/"}), 400
+    if not isinstance(device, str) or not device.startswith("/dev/usb/"):
+        return jsonify({"error": "Invalid printer device path"}), 400
 
-    # Check device
+    if not os.path.exists(device):
+        return jsonify({"error": f"Printer device not found: {device}"}), 503
+
+    try:
+        raw = tspl.encode("ascii", errors="replace")
+        with open(device, "wb") as f:
+            f.write(raw)
+        log.info("(legacy) Printed %d bytes to %s from %s", len(raw), device, request.remote_addr)
+        return jsonify({"status": "ok", "bytes_written": len(raw)})
+    except PermissionError:
+        return jsonify({"error": f"Permission denied: {device}", "hint": "Run setup.sh"}), 500
+    except Exception as exc:
+        log.error("Print error: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+# ── Bitmap render + print endpoint ───────────────────────────
+
+
+@app.route("/render_print", methods=["POST"])
+def render_print():
+    """
+    Authenticated endpoint — bitmap rendering mode.
+    Accepts structured JSON label data, renders a bitmap label
+    using DejaVu Sans font, and writes raw TSPL BITMAP bytes
+    to the USB printer for clean, professional output.
+
+    Expected JSON fields:
+        company          (str)  Company name
+        item_code        (str)  Item code (also encoded in QR)
+        item_name        (str)  Item display name
+        description      (str)  Item description (optional)
+        qty              (int)  Quantity
+        uom              (str)  Unit of measure
+        copies           (int)  Print copies (usually same as qty)
+        device           (str)  Printer device path (optional)
+        label_width_mm   (int)  Label width in mm (default 60)
+        label_height_mm  (int)  Label height in mm (default 40)
+        gap_mm           (int)  Gap between labels in mm (default 3)
+    """
+    err = _auth_check()
+    if err:
+        return err
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Missing JSON body"}), 400
+
+    device = data.get("device", PRINTER_DEVICE)
+    if not isinstance(device, str) or not device.startswith("/dev/usb/"):
+        return jsonify({"error": "Invalid printer device path"}), 400
+
     if not os.path.exists(device):
         log.error("Printer device not found: %s", device)
-        return (
-            jsonify(
-                {
-                    "error": f"Printer device not found: {device}",
-                    "hint": "Is the USB cable connected? Run setup.sh to fix permissions.",
-                }
-            ),
-            503,
-        )
+        return jsonify({"error": f"Printer device not found: {device}",
+                        "hint": "Is the USB cable connected?"}), 503
 
-    # Write to printer
+    w_mm   = int(data.get("label_width_mm",  60))
+    h_mm   = int(data.get("label_height_mm", 40))
+    gap_mm = int(data.get("gap_mm",           3))
+    copies = max(1, int(data.get("copies",    1)))
+
     try:
-        log.info("Raw TSPL received: %r", tspl)
-        raw = tspl.encode("ascii", errors="replace")
-        with open(device, "wb") as printer:
-            printer.write(raw)
-        log.info(
-            "Printed %d bytes to %s from %s",
-            len(raw),
-            device,
-            request.remote_addr,
-        )
-        return jsonify({"status": "ok", "bytes_written": len(raw)})
+        img = render_label_image(data)
+        raw = image_to_tspl_bytes(img, w_mm, h_mm, gap_mm, copies)
 
-    except PermissionError:
-        log.error("Permission denied: %s", device)
-        return (
-            jsonify(
-                {
-                    "error": f"Permission denied: {device}",
-                    "hint": "Run setup.sh or: sudo chmod 666 /dev/usb/lp*",
-                }
-            ),
-            500,
+        with open(device, "wb") as f:
+            f.write(raw)
+
+        log.info(
+            "Rendered+printed label (%d bytes, %d copies) to %s from %s",
+            len(raw), copies, device, request.remote_addr,
         )
-    except OSError as exc:
-        log.error("OS error writing to printer: %s", exc)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"status": "ok", "bytes_written": len(raw), "copies": copies})
+
+    except ImportError as exc:
+        log.error("Missing dependency: %s — run setup.sh", exc)
+        return jsonify({"error": f"Missing dependency: {exc}. Run setup.sh to install."}), 500
     except Exception as exc:
-        log.error("Unexpected error: %s", exc)
+        log.error("Render/print error: %s", exc, exc_info=True)
         return jsonify({"error": str(exc)}), 500
 
 

@@ -15,7 +15,7 @@ echo "║   TSC TDP-225 Print Agent — Setup Script         ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
 
-# ── 1. Install Flask ──────────────────────────────────────────
+# ── 1. Install Python dependencies ───────────────────────────
 echo "[1/5] Setting up virtual environment and installing dependencies..."
 if ! python3 -c "import venv" 2>/dev/null; then
     echo "      ❌ python3-venv is not installed on this Raspberry Pi."
@@ -30,7 +30,15 @@ fi
 
 "${SCRIPT_DIR}/env/bin/pip" install --quiet --upgrade pip
 "${SCRIPT_DIR}/env/bin/pip" install --quiet -r "${SCRIPT_DIR}/requirements.txt"
-echo "      ✅ Virtual environment set up and Flask installed"
+"${SCRIPT_DIR}/env/bin/pip" install --quiet Pillow "qrcode[pil]"
+echo "      ✅ Virtual environment set up with Flask, Pillow, and qrcode"
+
+# Ensure DejaVu fonts are installed (used for bitmap label rendering)
+if ! fc-list | grep -qi "DejaVu"; then
+    echo "      Installing DejaVu fonts..."
+    sudo apt-get install -y fonts-dejavu-core > /dev/null 2>&1
+fi
+echo "      ✅ DejaVu Sans fonts available"
 
 # ── 2. USB printer permissions ────────────────────────────────
 echo "[2/5] Setting USB printer permissions..."

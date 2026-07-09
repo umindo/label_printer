@@ -102,7 +102,8 @@ def get_printers():
 @frappe.whitelist()
 def print_item_labels(docname, items_json, printer_device=None):
     """
-    Build TSPL commands for each selected item and send to the print agent.
+    Send structured label data to the Pi print agent's /render_print endpoint.
+    The Pi renders a bitmap label using DejaVu Sans font for clean, professional output.
 
     Args:
         docname        (str): Delivery Note name, e.g. "DN-2026-00042"
@@ -121,32 +122,33 @@ def print_item_labels(docname, items_json, printer_device=None):
         frappe.throw(_("No items selected for printing."))
 
     settings = get_printer_settings()
-    company = dn.company
-
-    # ── Build TSPL for every selected item ──────────────────
-    tspl_blocks = []
+    company  = dn.company
     total_labels = 0
 
+    # ── Send each item to the Pi render endpoint ─────────────
     for item in items:
         qty = max(1, int(float(item.get("qty", 1))))
-        tspl = build_tspl(
-            company=company,
-            item_code=item.get("item_code", ""),
-            item_name=item.get("item_name", ""),
-            description=item.get("description", ""),
-            qty=qty,
-            uom=item.get("uom", ""),
-            settings=settings,
-        )
-        tspl_blocks.append(tspl)
+
+        payload = {
+            "company":          company,
+            "item_code":        item.get("item_code",   ""),
+            "item_name":        item.get("item_name",   ""),
+            "description":      _strip_html(item.get("description", "")),
+            "qty":              qty,
+            "uom":              item.get("uom",         ""),
+            "copies":           qty,
+            "label_width_mm":   int(settings.label_width),
+            "label_height_mm":  int(settings.label_height),
+            "gap_mm":           int(settings.gap_mm),
+        }
+        if printer_device:
+            payload["device"] = printer_device
+
+        send_render_request(payload, settings)
         total_labels += qty
 
-    if not tspl_blocks:
+    if not total_labels:
         frappe.throw(_("No valid items to print."))
-
-    # ── Send combined TSPL to Raspberry Pi agent ─────────────
-    combined_tspl = "".join(tspl_blocks)
-    send_to_print_agent(combined_tspl, settings, device=printer_device)
 
     return _("✅ Sent {0} label(s) to printer successfully.").format(total_labels)
 
@@ -270,28 +272,26 @@ def build_tspl(
 
 
 # ─────────────────────────────────────────────────────────────
-# HTTP transport — ERPNext → Raspberry Pi
+# HTTP transport — ERPNext → Raspberry Pi (bitmap render mode)
 # ─────────────────────────────────────────────────────────────
 
 
-def send_to_print_agent(tspl_data: str, settings, device=None) -> None:
+def send_render_request(payload: dict, settings) -> None:
     """
-    POST the combined TSPL string to the Flask print agent on the Pi.
+    POST structured label data to the Pi agent's /render_print endpoint.
+    The Pi renders the label as a bitmap using DejaVu Sans font and sends
+    it to the printer via TSPL BITMAP command.
     Raises a Frappe exception with a user-friendly message on any error.
     """
-    url = f"http://{settings.agent_ip}:{settings.agent_port}/print"
+    url = f"http://{settings.agent_ip}:{settings.agent_port}/render_print"
     headers = {"X-API-Key": settings.get_password("api_key")}
-
-    payload = {"tspl": tspl_data}
-    if device:
-        payload["device"] = device
 
     try:
         resp = requests.post(
             url,
             json=payload,
             headers=headers,
-            timeout=10,
+            timeout=20,   # Rendering takes a little longer than raw TSPL
         )
         resp.raise_for_status()
     except requests.exceptions.ConnectionError:
@@ -308,6 +308,11 @@ def send_to_print_agent(tspl_data: str, settings, device=None) -> None:
     except requests.exceptions.HTTPError as exc:
         if exc.response is not None and exc.response.status_code == 401:
             frappe.throw(_("Invalid API Key. Update it in Label Printer Settings."))
-        frappe.throw(_("Print Agent returned an error: {0}").format(str(exc)))
+        detail = ""
+        try:
+            detail = exc.response.json().get("error", "")
+        except Exception:
+            pass
+        frappe.throw(_("Print Agent returned an error: {0} {1}").format(str(exc), detail))
     except Exception as exc:
         frappe.throw(_("Unexpected error while printing: {0}").format(str(exc)))
