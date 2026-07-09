@@ -96,15 +96,18 @@ def render_label_image(data: dict):
     h_mm  = int(data.get("label_height_mm", 40))
     W     = round(w_mm  / 25.4 * DPI)   # 480 dots
     H     = round(h_mm  / 25.4 * DPI)   # 320 dots
-    M     = 35                            # Increased left/right margin in dots to prevent edge cutoffs
+    
+    # 1mm left/right = 8 dots, 2mm top/bottom = 16 dots at 203 DPI
+    M_LR  = 8
+    M_TB  = 16
 
-    # Truncate text to safe widths for the new margins
-    company     = str(data.get("company",     ""))[:26]
-    item_name   = str(data.get("item_name",   ""))[:24]
+    # Truncate text to fit the new wider printable area (464 dots wide)
+    company     = str(data.get("company",     ""))[:32]
+    item_name   = str(data.get("item_name",   ""))[:28]
     item_code   = str(data.get("item_code",   ""))
     description = str(data.get("description", ""))
     qty         = int(data.get("qty",  1))
-    uom         = str(data.get("uom",  ""))[:10]
+    uom         = str(data.get("uom",  ""))[:12]
 
     # Load fonts (adjusted sizes for margin safety)
     f_hdr  = _load_font(FONT_BOLD,    22)   # Header company name
@@ -120,33 +123,33 @@ def render_label_image(data: dict):
 
     # ── Header ───────────────────────────────────────────────
     # Logo box
-    draw.rectangle([M, 8, M + 34, 42], outline="black", width=2)
-    draw.text((M + 8, 9), "U", font=f_logo, fill="black")
+    draw.rectangle([M_LR, M_TB, M_LR + 34, M_TB + 32], outline="black", width=2)
+    draw.text((M_LR + 8, M_TB + 4), "U", font=f_logo, fill="black")
     # Company name
-    draw.text((M + 44, 10), company, font=f_hdr, fill="black")
+    draw.text((M_LR + 44, M_TB + 5), company, font=f_hdr, fill="black")
     # Divider 1
-    draw.line([(M, 48), (W - M, 48)], fill="black", width=2)
+    draw.line([(M_LR, M_TB + 38), (W - M_LR, M_TB + 38)], fill="black", width=2)
 
     # ── Body ─────────────────────────────────────────────────
-    draw.text((M, 58),  "ITEM DESC:", font=f_lbl, fill="black")
-    draw.text((M, 80),  item_name,    font=f_name, fill="black")
+    draw.text((M_LR, M_TB + 48), "ITEM DESC:", font=f_lbl, fill="black")
+    draw.text((M_LR, M_TB + 68), item_name,    font=f_name, fill="black")
     
     # Description (if different from name)
     if description and description != item_name:
         f_desc = _load_font(FONT_REGULAR, 18)
-        draw.text((M, 115), description[:35], font=f_desc, fill="black")
-        draw.text((M, 155), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
+        draw.text((M_LR, M_TB + 102), description[:42], font=f_desc, fill="black")
+        draw.text((M_LR, M_TB + 140), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
     else:
-        draw.text((M, 135), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
+        draw.text((M_LR, M_TB + 120), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
 
-    # Divider 2 (placed much lower at Y=200 to give body section proper vertical space)
+    # Divider 2 (placed lower to separate footer, fits within H-M_TB = 304 dots)
     div_y = 200
-    draw.line([(M, div_y), (W - M, div_y)], fill="black", width=2)
+    draw.line([(M_LR, div_y), (W - M_LR, div_y)], fill="black", width=2)
 
     # ── Footer Left: Contact Info ─────────────────────────────
     fy = div_y + 14
-    draw.text((M, fy),      LABEL_WEB,   font=f_foot, fill="black")
-    draw.text((M, fy + 22), LABEL_EMAIL, font=f_foot, fill="black")
+    draw.text((M_LR, fy),      LABEL_WEB,   font=f_foot, fill="black")
+    draw.text((M_LR, fy + 22), LABEL_EMAIL, font=f_foot, fill="black")
 
     # ── Footer Right: QR Code ─────────────────────────────────
     qr = _qr.QRCode(
@@ -160,15 +163,15 @@ def render_label_image(data: dict):
     qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
     qr_w, qr_h = qr_img.size
 
-    # Fit QR into footer area (Y=200 to Y=320 is 120px tall)
-    footer_h = H - div_y - 12
+    # Fit QR into footer area (div_y to H-M_TB is 200 to 304 = 104px tall)
+    footer_h = H - M_TB - div_y - 6
     if qr_h > footer_h:
         scale  = footer_h / qr_h
         qr_img = qr_img.resize((int(qr_w * scale), footer_h))
         qr_w, qr_h = qr_img.size
 
-    qr_x = W - qr_w - M
-    qr_y = div_y + (H - div_y - qr_h) // 2
+    qr_x = W - qr_w - M_LR
+    qr_y = div_y + (H - M_TB - div_y - qr_h) // 2
     img.paste(qr_img, (qr_x, qr_y))
 
     return img
