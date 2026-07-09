@@ -121,30 +121,35 @@ def render_label_image(data: dict):
     img  = Image.new("RGB", (W, H), "white")
     draw = ImageDraw.Draw(img)
 
+    # ── Outer Border ──────────────────────────────────────────
+    # Draws the main label frame matching the mockup border
+    draw.rectangle([M_LR, M_TB, W - M_LR, H - M_TB], outline="black", width=2)
+
     # ── Header ───────────────────────────────────────────────
-    # Logo box
-    draw.rectangle([M_LR, M_TB, M_LR + 34, M_TB + 32], outline="black", width=2)
-    draw.text((M_LR + 8, M_TB + 4), "U", font=f_logo, fill="black")
+    # Logo box (placed inside the outer border with padding)
+    logo_left = M_LR + 8
+    draw.rectangle([logo_left, M_TB + 6, logo_left + 34, M_TB + 38], outline="black", width=2)
+    draw.text((logo_left + 8, M_TB + 10), "U", font=f_logo, fill="black")
     # Company name
-    draw.text((M_LR + 44, M_TB + 5), company, font=f_hdr, fill="black")
-    # Divider 1
-    draw.line([(M_LR, M_TB + 38), (W - M_LR, M_TB + 38)], fill="black", width=2)
+    draw.text((logo_left + 44, M_TB + 11), company, font=f_hdr, fill="black")
+    # Divider 1 (extends from left border to right border)
+    draw.line([(M_LR, M_TB + 44), (W - M_LR, M_TB + 44)], fill="black", width=2)
 
     # ── Body ─────────────────────────────────────────────────
-    # Keep text padded 16 dots from left for neatness
-    text_pad = M_LR + 12
-    draw.text((text_pad, M_TB + 48), "ITEM DESC:", font=f_lbl, fill="black")
-    draw.text((text_pad, M_TB + 68), item_name,    font=f_name, fill="black")
+    # Keep text padded 16 dots from left border for neatness
+    text_pad = M_LR + 16
+    draw.text((text_pad, M_TB + 54), "ITEM DESC:", font=f_lbl, fill="black")
+    draw.text((text_pad, M_TB + 74), item_name,    font=f_name, fill="black")
     
     # Description (if different from name)
     if description and description != item_name:
         f_desc = _load_font(FONT_REGULAR, 18)
-        draw.text((text_pad, M_TB + 102), description[:44], font=f_desc, fill="black")
-        draw.text((text_pad, M_TB + 140), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
+        draw.text((text_pad, M_TB + 108), description[:44], font=f_desc, fill="black")
+        draw.text((text_pad, M_TB + 144), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
     else:
-        draw.text((text_pad, M_TB + 120), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
+        draw.text((text_pad, M_TB + 124), f"QTY: {qty}    UNIT: {uom}", font=f_qty, fill="black")
 
-    # Divider 2 (placed lower to separate footer, fits within H-M_TB = 304 dots)
+    # Divider 2 (extends from left border to right border)
     div_y = 200
     draw.line([(M_LR, div_y), (W - M_LR, div_y)], fill="black", width=2)
 
@@ -172,8 +177,8 @@ def render_label_image(data: dict):
         qr_img = qr_img.resize((int(qr_w * scale), footer_h))
         qr_w, qr_h = qr_img.size
 
-    # Keep QR code 20 dots away from the right edge specifically, so it never gets cut off
-    qr_x = W - qr_w - 20
+    # Place QR code inside the right border with padding
+    qr_x = W - qr_w - M_LR - 12
     qr_y = div_y + (H - M_TB - div_y - qr_h) // 2
     img.paste(qr_img, (qr_x, qr_y))
 
